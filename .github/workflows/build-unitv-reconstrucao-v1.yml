@@ -1,0 +1,154 @@
+name: "UniTV Reconstrucao V1 - APK"
+
+on:
+  push:
+    paths:
+      - '.github/workflows/build-unitv-reconstrucao-v1.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Criar projeto Android
+        shell: bash
+        run: |
+          set -e
+          rm -rf unitv-prototipo
+          mkdir -p unitv-prototipo/app/src/main/java/com/grupobigger/unitvproto
+          mkdir -p unitv-prototipo/app/src/main/res/values
+
+          cat > unitv-prototipo/settings.gradle <<'EOF'
+          pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
+          dependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS); repositories { google(); mavenCentral() } }
+          rootProject.name = 'UniTVReconstrucao'
+          include ':app'
+          EOF
+
+          cat > unitv-prototipo/build.gradle <<'EOF'
+          plugins {
+              id 'com.android.application' version '8.7.3' apply false
+          }
+          EOF
+
+          cat > unitv-prototipo/app/build.gradle <<'EOF'
+          plugins { id 'com.android.application' }
+
+          android {
+              namespace 'com.grupobigger.unitvproto'
+              compileSdk 35
+
+              defaultConfig {
+                  applicationId 'com.grupobigger.unitvproto'
+                  minSdk 21
+                  targetSdk 35
+                  versionCode 1
+                  versionName '4.19.1.00-prototipo'
+              }
+          }
+          EOF
+
+          cat > unitv-prototipo/app/src/main/res/values/colors.xml <<'EOF'
+          <resources>
+              <color name="transparent">#00000000</color>
+          </resources>
+          EOF
+
+          cat > unitv-prototipo/app/src/main/res/values/styles.xml <<'EOF'
+          <resources>
+              <style name="AppTheme" parent="android:style/Theme.Material.Light.NoActionBar">
+                  <item name="android:fontFamily">sans</item>
+                  <item name="android:windowFullscreen">true</item>
+                  <item name="android:windowActionModeOverlay">true</item>
+                  <item name="android:colorAccent">#E91E2B</item>
+                  <item name="android:navigationBarColor">#000000</item>
+                  <item name="android:windowLightStatusBar">false</item>
+              </style>
+          </resources>
+          EOF
+
+          cat > unitv-prototipo/app/src/main/AndroidManifest.xml <<'EOF'
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <uses-feature android:name="android.software.leanback" android:required="false" />
+              <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+              <uses-permission android:name="android.permission.INTERNET" />
+              <application android:theme="@style/AppTheme" android:label="UniTV">
+                  <activity android:name=".MainActivity" android:screenOrientation="landscape" android:configChanges="keyboard|keyboardHidden|orientation|screenSize" android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                          <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          EOF
+
+          cat > unitv-prototipo/app/src/main/java/com/grupobigger/unitvproto/MainActivity.java <<'EOF'
+          package com.grupobigger.unitvproto;
+
+          import android.app.*;
+          import android.os.*;
+          import android.graphics.Color;
+          import android.graphics.drawable.GradientDrawable;
+          import android.view.*;
+          import android.view.inputmethod.EditorInfo;
+          import android.widget.*;
+          import java.text.SimpleDateFormat;
+          import java.util.*;
+
+          public class MainActivity extends Activity {
+              int red = Color.rgb(92,0,4), deep = Color.rgb(48,0,3), panel = Color.rgb(50,52,60), orange = Color.rgb(255,172,35);
+              LinearLayout root;
+              int dp(float v){ return (int)(v*getResources().getDisplayMetrics().density+0.5f); }
+              TextView tv(String s,float sp,int c){ TextView t=new TextView(this); t.setText(s); t.setTextSize(sp); t.setTextColor(c); t.setGravity(Gravity.CENTER_VERTICAL); t.setPadding(dp(12),dp(6),dp(12),dp(6)); return t; }
+              GradientDrawable bg(int color,float r){ GradientDrawable g=new GradientDrawable(); g.setColor(color); g.setCornerRadius(dp(r)); return g; }
+              Button btn(String s){ Button b=new Button(this); b.setText(s); b.setTextColor(Color.WHITE); b.setTextSize(18); b.setAllCaps(false); b.setBackground(bg(Color.rgb(110,110,115),24)); b.setFocusable(true); b.setOnFocusChangeListener((v,f)->v.setBackground(bg(f?Color.rgb(218,25,42):Color.rgb(110,110,115),24))); return b; }
+              void lp(View v,int w,int h){ v.setLayoutParams(new LinearLayout.LayoutParams(w,h)); }
+              @Override public void onCreate(Bundle b){ super.onCreate(b); getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN,WindowManager.LayoutParams.FLAG_FULLSCREEN); getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_FULLSCREEN|View.SYSTEM_UI_FLAG_HIDE_NAVIGATION|View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY); splash(); }
+              void base(int color){ root=new LinearLayout(this); root.setOrientation(LinearLayout.VERTICAL); root.setBackgroundColor(color); root.setPadding(dp(28),dp(18),dp(28),dp(18)); setContentView(root); }
+              void splash(){ base(Color.rgb(0,12,49)); Space s=new Space(this); root.addView(s,new LinearLayout.LayoutParams(1,0,1)); TextView logo=tv("▶",52,Color.WHITE); logo.setGravity(Gravity.CENTER); root.addView(logo,new LinearLayout.LayoutParams(-1,dp(90))); TextView n=tv("UniTV",24,Color.WHITE); n.setGravity(Gravity.CENTER); root.addView(n,new LinearLayout.LayoutParams(-1,dp(55))); TextView v=tv("V 4.19.1.00",16,Color.WHITE); v.setGravity(Gravity.CENTER); root.addView(v,new LinearLayout.LayoutParams(-1,dp(40))); Space s2=new Space(this); root.addView(s2,new LinearLayout.LayoutParams(1,0,1)); new Handler().postDelayed(()->tutorial1(),1600); }
+              void tutorial1(){ base(Color.rgb(35,37,44)); LinearLayout line=new LinearLayout(this); line.setOrientation(LinearLayout.HORIZONTAL); root.addView(line,new LinearLayout.LayoutParams(-1,0,1)); LinearLayout left=new LinearLayout(this); left.setOrientation(LinearLayout.VERTICAL); left.setPadding(dp(28),dp(14),dp(18),0); line.addView(left,new LinearLayout.LayoutParams(0,-1,1)); TextView title=tv("1  OTIMIZADA A OPERAÇÃO INFOBAR\n    NO PLAYBACK",31,orange); left.addView(title,new LinearLayout.LayoutParams(-1,dp(120))); left.addView(tv("• Clique no botão MENU para voltar para a lista de canais ou para trocar de programação.\n\n• Clique no botão ▼ para escolher as outras funções, bem como Proporção da Tela e Feedback de Problemas.",20,Color.WHITE),new LinearLayout.LayoutParams(-1,0,1)); FrameLayout art=new FrameLayout(this); art.setBackgroundColor(Color.rgb(6,6,8)); line.addView(art,new LinearLayout.LayoutParams(0,-1,1)); TextView fake=tv("TVN HD+\n\n      PREVIEW DO CANAL\n\n▼",30,Color.WHITE); fake.setGravity(Gravity.CENTER); art.addView(fake,new FrameLayout.LayoutParams(-1,-1)); Button next=btn("Próximo"); next.setOnClickListener(v->tutorial2()); LinearLayout.LayoutParams bp=new LinearLayout.LayoutParams(dp(230),dp(62)); bp.gravity=Gravity.CENTER; root.addView(next,bp); next.requestFocus(); }
+              void tutorial2(){ base(Color.rgb(43,37,57)); TextView title=tv("2  OTIMIZADA A OPERAÇÃO INFOBAR NOS\n    VÍDEOS SOB DEMANDA",31,orange); root.addView(title,new LinearLayout.LayoutParams(-1,dp(115))); root.addView(tv("Clique no botão ▼ para escolher as outras funções, bem como Escolher episódio, Idioma, Legenda, Proporção da Tela, Feedback de Problemas, etc.",19,Color.LTGRAY),new LinearLayout.LayoutParams(-1,dp(80))); TextView screen=tv("Vingadores — Ultimato\n\n                 PREVIEW VOD\n\n00:24:47                                      01:40:42",22,Color.WHITE); screen.setGravity(Gravity.CENTER); screen.setBackgroundColor(Color.rgb(10,12,18)); LinearLayout.LayoutParams sp=new LinearLayout.LayoutParams(dp(520),0,1); sp.gravity=Gravity.CENTER; root.addView(screen,sp); Button go=btn("Experimente já"); go.setOnClickListener(v->mainWithTips()); LinearLayout.LayoutParams bp=new LinearLayout.LayoutParams(dp(230),dp(62)); bp.gravity=Gravity.CENTER; root.addView(go,bp); go.requestFocus(); }
+              void mainWithTips(){ mainScreen(); new Handler().postDelayed(()->tipsDialog(),180); }
+              void tipsDialog(){ final Dialog d=new Dialog(this); LinearLayout p=new LinearLayout(this); p.setOrientation(LinearLayout.VERTICAL); p.setPadding(dp(34),dp(20),dp(34),dp(26)); p.setBackground(bg(panel,0)); TextView h=tv("Dicas",28,Color.WHITE); h.setGravity(Gravity.CENTER); p.addView(h,new LinearLayout.LayoutParams(-1,dp(62))); p.addView(tv("Por favor, faça o login ou vincule o seu E-mail/ número de celular, e então você pode desfrutar dos nossos serviços.",19,Color.LTGRAY),new LinearLayout.LayoutParams(-1,dp(110))); LinearLayout buttons=new LinearLayout(this); buttons.setOrientation(LinearLayout.HORIZONTAL); Button vinc=btn("Vincular\nRecomendado para usuários novos"); Button log=btn("Login\nRecomendado para usuários antigos"); buttons.addView(vinc,new LinearLayout.LayoutParams(0,dp(90),1)); Space gap=new Space(this); buttons.addView(gap,new LinearLayout.LayoutParams(dp(50),1)); buttons.addView(log,new LinearLayout.LayoutParams(0,dp(90),1)); p.addView(buttons,new LinearLayout.LayoutParams(-1,dp(100))); vinc.setOnClickListener(v->{d.dismiss(); security();}); log.setOnClickListener(v->{d.dismiss(); mainScreen();}); d.setContentView(p); Window w=d.getWindow(); if(w!=null){ w.setBackgroundDrawableResource(android.R.color.transparent); w.setLayout((int)(getResources().getDisplayMetrics().widthPixels*.60),(int)(getResources().getDisplayMetrics().heightPixels*.58)); } d.setOnShowListener(x->{ Window ww=d.getWindow(); if(ww!=null) ww.setLayout((int)(getResources().getDisplayMetrics().widthPixels*.60),(int)(getResources().getDisplayMetrics().heightPixels*.58)); vinc.requestFocus(); }); d.show(); }
+              void topBar(LinearLayout parent){ LinearLayout top=new LinearLayout(this); top.setOrientation(LinearLayout.HORIZONTAL); TextView brand=tv("▣  UniTV",23,Color.WHITE); top.addView(brand,new LinearLayout.LayoutParams(0,dp(58),1)); String tm=new SimpleDateFormat("HH:mm",Locale.getDefault()).format(new Date()); TextView icons=tv("⌕   ▽   ◷   ◯   ♧   ≋   ▣   "+tm,25,Color.LTGRAY); icons.setGravity(Gravity.RIGHT|Gravity.CENTER_VERTICAL); top.addView(icons,new LinearLayout.LayoutParams(0,dp(58),2)); parent.addView(top,new LinearLayout.LayoutParams(-1,dp(58))); }
+              void mainScreen(){ base(red); topBar(root); HorizontalScrollView hsv=new HorizontalScrollView(this); hsv.setHorizontalScrollBarEnabled(false); LinearLayout tabs=new LinearLayout(this); tabs.setOrientation(LinearLayout.HORIZONTAL); String[] a={"TV","JOGOS","GRATUITO","DESTAQUES","FILMES","SÉRIES","KIDS","ANIME","EXPLORAR"}; for(String s:a){ TextView t=tv(s,23,Color.LTGRAY); t.setGravity(Gravity.CENTER); t.setFocusable(true); t.setOnFocusChangeListener((v,f)->((TextView)v).setTextColor(f?Color.rgb(255,60,65):Color.WHITE)); tabs.addView(t,new LinearLayout.LayoutParams(dp(155),dp(72))); } hsv.addView(tabs); root.addView(hsv,new LinearLayout.LayoutParams(-1,dp(72))); LinearLayout body=new LinearLayout(this); body.setOrientation(LinearLayout.HORIZONTAL); root.addView(body,new LinearLayout.LayoutParams(-1,0,1)); LinearLayout list=new LinearLayout(this); list.setOrientation(LinearLayout.VERTICAL); list.setBackgroundColor(Color.argb(70,20,0,0)); list.addView(tv("Lista de Canais",22,Color.WHITE),new LinearLayout.LayoutParams(-1,dp(52))); String[] chans={"▶ A Fazenda 18 Já..","2  UFC Fight Pass","3  UFC Fight Pass 2","4  Formula1(F1)","5  MOSAICO","6  TV Brasil Esperan..","7  TV CÂMARA"}; for(String s:chans){ TextView c=tv(s,20,Color.WHITE); c.setFocusable(true); c.setOnFocusChangeListener((v,f)->v.setBackgroundColor(f?Color.argb(120,180,20,25):Color.TRANSPARENT)); list.addView(c,new LinearLayout.LayoutParams(-1,dp(62))); } body.addView(list,new LinearLayout.LayoutParams(0,-1,35)); FrameLayout preview=new FrameLayout(this); preview.setBackgroundColor(Color.BLACK); TextView msg=tv("Você não é membro VIP, torne-se membro e aproveite nosso\nconteúdo.",22,Color.WHITE); msg.setGravity(Gravity.CENTER); preview.addView(msg,new FrameLayout.LayoutParams(-1,-1)); body.addView(preview,new LinearLayout.LayoutParams(0,-1,65)); brandUserClick(); }
+              void brandUserClick(){ View decor=getWindow().getDecorView(); decor.setOnClickListener(v->{}); // keep touch handling per children
+                  // invisible shortcut in top-right via overlay avoided; use long-press brand? add touch zone
+                  TextView profile=tv("◯",34,Color.TRANSPARENT); profile.setFocusable(true); profile.setContentDescription("Perfil"); profile.setOnClickListener(v->profile()); addContentView(profile,new ViewGroup.LayoutParams(dp(120),dp(80))); profile.setX(getResources().getDisplayMetrics().widthPixels-dp(420)); profile.setY(dp(10)); }
+              void profile(){ base(red); LinearLayout all=new LinearLayout(this); all.setOrientation(LinearLayout.HORIZONTAL); root.addView(all,new LinearLayout.LayoutParams(-1,-1)); LinearLayout left=new LinearLayout(this); left.setOrientation(LinearLayout.VERTICAL); left.setGravity(Gravity.TOP|Gravity.CENTER_HORIZONTAL); left.setPadding(dp(20),dp(28),dp(20),0); left.addView(tv("●",70,Color.LTGRAY),new LinearLayout.LayoutParams(dp(130),dp(120))); TextView id=tv("Visitante   552666710",22,Color.WHITE); id.setGravity(Gravity.CENTER); left.addView(id,new LinearLayout.LayoutParams(-1,dp(55))); Button vinc=btn("Vincular agora"); left.addView(vinc,new LinearLayout.LayoutParams(-1,dp(58))); Button other=btn("Entrar com outras contas"); LinearLayout.LayoutParams op=new LinearLayout.LayoutParams(-1,dp(58)); op.topMargin=dp(15); left.addView(other,op); vinc.setOnClickListener(v->security()); other.setOnClickListener(v->loginDialog()); all.addView(left,new LinearLayout.LayoutParams(dp(360),-1)); ScrollView sv=new ScrollView(this); LinearLayout right=new LinearLayout(this); right.setOrientation(LinearLayout.VERTICAL); right.setPadding(dp(20),dp(20),dp(20),dp(30)); LinearLayout cards=new LinearLayout(this); cards.setOrientation(LinearLayout.HORIZONTAL); String[] top={"▣\nLogar no celular","≡\nCentro de resgate","🎁\nCentro de Eventos","•••\nMais"}; for(String s:top){ Button b=btn(s); cards.addView(b,new LinearLayout.LayoutParams(0,dp(160),1)); } right.addView(cards,new LinearLayout.LayoutParams(-1,dp(170))); right.addView(tv("Histórico",25,Color.WHITE),new LinearLayout.LayoutParams(-1,dp(55))); Button mais=btn("•••\nMais"); right.addView(mais,new LinearLayout.LayoutParams(dp(190),dp(180))); right.addView(tv("Minha lista de favoritos",25,Color.WHITE),new LinearLayout.LayoutParams(-1,dp(65))); LinearLayout fav=new LinearLayout(this); fav.setOrientation(LinearLayout.HORIZONTAL); Button f1=btn("★\nMeus Favoritos"); Button f2=btn("♟\nMinha Lista"); fav.addView(f1,new LinearLayout.LayoutParams(dp(280),dp(150))); fav.addView(f2,new LinearLayout.LayoutParams(dp(280),dp(150))); right.addView(fav); right.addView(tv("Funções mais usadas",22,Color.LTGRAY),new LinearLayout.LayoutParams(-1,dp(55))); GridLayout grid=new GridLayout(this); grid.setColumnCount(4); String[] fs={"⚙ Configurações globais","▣ Controle Parental","⌫ Limpar cache","? Centro de ajuda","✎ Feedback & Sugestões","↑ Atualizar Versão","ⓘ Sobre nós","🔓 Conteúdo adulto"}; for(String s:fs){ Button b=btn(s); GridLayout.LayoutParams gp=new GridLayout.LayoutParams(); gp.width=dp(240); gp.height=dp(120); gp.setMargins(dp(5),dp(5),dp(5),dp(5)); grid.addView(b,gp); } right.addView(grid); sv.addView(right); all.addView(sv,new LinearLayout.LayoutParams(0,-1,1)); other.requestFocus(); }
+              void security(){ base(red); TextView title=tv("Segurança da conta",39,Color.LTGRAY); root.addView(title,new LinearLayout.LayoutParams(-1,dp(88))); ScrollView sv=new ScrollView(this); LinearLayout box=new LinearLayout(this); box.setOrientation(LinearLayout.VERTICAL); box.setPadding(dp(80),0,dp(80),dp(25)); String[] blocks={"🔒   Status da senha : Não configurado\n       Você pode definir a senha de login durante a vinculação do e-mail ou telefone celular\n       Definir senha","✉   Status do e-mail : Não vinculado                    Conta do email : No\n       Depois de vincular seu e-mail a sua conta, você poderá conectar em diferentes dispositivos\n       Configurar","▣   Status do celular : Não vinculado                    Número do celular : Nenhum\n       Pode logar com o número do celular nos outros dispositivos depois que vincular o número do celular.\n       Vincular","⊘   Conteúdo adulto : ativadoo\n       O botão conteúdo adulto Está ligado!\n       Observe que o programa não é adequado para crianças menores de 18 anos assistirem!\n       ON   ●"}; for(String s:blocks){ TextView t=tv(s,21,Color.WHITE); t.setBackgroundColor(Color.argb(45,0,0,0)); t.setFocusable(true); box.addView(t,new LinearLayout.LayoutParams(-1,dp(160))); } sv.addView(box); root.addView(sv,new LinearLayout.LayoutParams(-1,0,1)); }
+              void loginDialog(){ final Dialog d=new Dialog(this); LinearLayout p=new LinearLayout(this); p.setOrientation(LinearLayout.VERTICAL); p.setPadding(dp(32),dp(10),dp(32),dp(18)); p.setBackground(bg(panel,0)); TextView h=tv("Login",28,Color.WHITE); h.setGravity(Gravity.CENTER); p.addView(h,new LinearLayout.LayoutParams(-1,dp(55))); TextView id=tv("ID : 552666710",16,orange); id.setGravity(Gravity.CENTER); p.addView(id,new LinearLayout.LayoutParams(-1,dp(38))); p.addView(tv("Conta :",18,Color.WHITE),new LinearLayout.LayoutParams(-1,dp(34))); EditText user=new EditText(this); user.setHint("Por favor insira sua conta ou e-mail"); user.setTextColor(Color.WHITE); user.setHintTextColor(Color.GRAY); user.setSingleLine(true); user.setImeOptions(EditorInfo.IME_ACTION_NEXT); user.setBackgroundColor(Color.rgb(67,68,75)); p.addView(user,new LinearLayout.LayoutParams(-1,dp(50))); p.addView(tv("Senha :",18,Color.WHITE),new LinearLayout.LayoutParams(-1,dp(34))); EditText pass=new EditText(this); pass.setHint("Por favor insira sua senha"); pass.setTextColor(Color.WHITE); pass.setHintTextColor(Color.GRAY); pass.setSingleLine(true); pass.setBackgroundColor(Color.rgb(67,68,75)); p.addView(pass,new LinearLayout.LayoutParams(-1,dp(50))); TextView forgot=tv("Esqueceu a senha",16,Color.WHITE); forgot.setGravity(Gravity.RIGHT); p.addView(forgot,new LinearLayout.LayoutParams(-1,dp(36))); Button login=btn("Login"); p.addView(login,new LinearLayout.LayoutParams(-1,dp(58))); TextView other=tv("Outras opções de login\n\n     ◉ Telefone                 ◉ SMS\n\nQualquer dúvida, contate: unitvsuporte5@gmail.com",16,Color.LTGRAY); other.setGravity(Gravity.CENTER); p.addView(other,new LinearLayout.LayoutParams(-1,dp(145))); login.setOnClickListener(v->Toast.makeText(this,"Protótipo: autenticação será ligada na próxima etapa.",Toast.LENGTH_SHORT).show()); d.setContentView(p); d.setOnShowListener(x->{Window w=d.getWindow(); if(w!=null)w.setLayout((int)(getResources().getDisplayMetrics().widthPixels*.46),(int)(getResources().getDisplayMetrics().heightPixels*.88)); user.requestFocus();}); d.show(); }
+              @Override public void onBackPressed(){ mainScreen(); }
+          }
+          EOF
+
+      - name: Compilar APK
+        working-directory: unitv-prototipo
+        run: gradle --no-daemon :app:assembleDebug
+
+      - name: Preparar APK
+        shell: bash
+        run: |
+          cp unitv-prototipo/app/build/outputs/apk/debug/app-debug.apk UniTV-Reconstrucao-V1.apk
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: UniTV-Reconstrucao-V1-APK
+          path: UniTV-Reconstrucao-V1.apk
+          retention-days: 30
