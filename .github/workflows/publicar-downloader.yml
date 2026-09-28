@@ -1,0 +1,26 @@
+name: Publicar Downloader APK
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "Downloader.apk"
+      - ".github/workflows/publicar-downloader.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar repositório
+        uses: actions/checkout@v4
+
+      - name: Enviar APK para Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload apps Downloader.apk --clobber
