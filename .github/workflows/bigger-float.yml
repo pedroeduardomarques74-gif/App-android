@@ -1,4 +1,4 @@
-name: BIGGER FLOAT - GERAR APK
+name: BIGGER OVERLAY V2 - GERAR APK
 on:
   push:
     paths:
@@ -22,8 +22,8 @@ jobs:
         working-directory: bigger-float
         run: gradle assembleDebug --stacktrace
       - name: Renomear APK
-        run: cp bigger-float/app/build/outputs/apk/debug/app-debug.apk BIGGER-FLOAT-v1.apk
+        run: cp bigger-float/app/build/outputs/apk/debug/app-debug.apk BIGGER-OVERLAY-v2.apk
       - uses: actions/upload-artifact@v4
         with:
-          name: BIGGER-FLOAT-v1
-          path: BIGGER-FLOAT-v1.apk
+          name: BIGGER-OVERLAY-v2
+          path: BIGGER-OVERLAY-v2.apk
