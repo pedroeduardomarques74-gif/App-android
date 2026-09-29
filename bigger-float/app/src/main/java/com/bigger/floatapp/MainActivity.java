@@ -3,143 +3,281 @@ package com.bigger.floatapp;
 import android.app.*;
 import android.content.*;
 import android.content.pm.*;
-import android.graphics.Color;
+import android.graphics.*;
+import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.*;
 import android.provider.Settings;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.view.*;
 import android.widget.*;
+
 import java.util.*;
 
 public class MainActivity extends Activity {
-    private LinearLayout root;
-    private TextView status, targetLabel;
-    private Switch enable, boot, snap;
-    private SeekBar size, alpha;
+    private LinearLayout listContainer;
+    private EditText search;
+    private final ArrayList<AppItem> allApps = new ArrayList<>();
+    private final HashSet<String> favorites = new HashSet<>();
+    private static final int BG = 0xFF0F172A;
+    private static final int CARD = 0xFF1E293B;
+    private static final int BLUE = 0xFF246BFD;
+    private static final int TEXT = 0xFFFFFFFF;
+    private static final int MUTED = 0xFF94A3B8;
 
-    @Override public void onCreate(Bundle b) { super.onCreate(b); buildUi(); loadUi(); }
-    @Override protected void onResume() { super.onResume(); updatePermissionStatus(); }
+    static class AppItem {
+        String name, pkg;
+        android.graphics.drawable.Drawable icon;
+        AppItem(String n, String p, android.graphics.drawable.Drawable i){ name=n; pkg=p; icon=i; }
+    }
+
+    @Override public void onCreate(Bundle b) {
+        super.onCreate(b);
+        loadFavorites();
+        buildUi();
+        loadApps();
+        render("");
+    }
 
     private void buildUi() {
-        ScrollView sv = new ScrollView(this); sv.setFillViewport(true);
-        root = new LinearLayout(this); root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(dp(20), dp(24), dp(20), dp(40)); root.setBackgroundColor(Color.rgb(15,23,42)); sv.addView(root);
+        ScrollView sv = new ScrollView(this);
+        sv.setFillViewport(true);
 
-        TextView title = text("BIGGER FLOAT", 30, true); root.addView(title);
-        TextView sub = text("Controle completo da sua bolinha flutuante", 15, false); sub.setTextColor(0xFFCBD5E1); root.addView(sub, lp(-1,-2,0,0,0,18));
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setPadding(dp(18), dp(20), dp(18), dp(32));
+        root.setBackgroundColor(BG);
+        sv.addView(root);
 
-        status = text("", 15, true); root.addView(card(status));
-        Button permission = button("ABRIR PERMISSÃO DE SOBREPOSIÇÃO");
-        permission.setOnClickListener(v -> openOverlaySettings()); root.addView(permission, lp(-1,dp(52),0,12,0,18));
+        TextView title = tv("BIGGER OVERLAY", 28, true, TEXT);
+        root.addView(title);
 
-        enable = sw("Ativar bolinha flutuante"); root.addView(enable);
-        enable.setOnCheckedChangeListener((v, checked) -> toggleBubble(checked));
+        TextView sub = tv("Atalhos para ativar ou remover a sobreposição dos próprios aplicativos", 14, false, 0xFFCBD5E1);
+        root.addView(sub, lp(-1,-2,0,4,0,18));
 
-        targetLabel = text("Aplicativo ao tocar: Nenhum", 16, true); root.addView(card(targetLabel), lp(-1,-2,0,16,0,8));
-        Button choose = button("ESCOLHER APLICATIVO"); choose.setOnClickListener(v -> chooseApp()); root.addView(choose);
+        TextView info = tv(
+                "Este app não cria bolinha flutuante. Ele abre as permissões do Android. Se o aplicativo escolhido tiver uma bolha/janela própria, é ele que vai mostrar.",
+                13, false, 0xFFCBD5E1
+        );
+        LinearLayout infoCard = card();
+        infoCard.addView(info);
+        root.addView(infoCard, lp(-1,-2,0,0,0,14));
 
-        addSection("Tamanho da bolinha");
-        size = new SeekBar(this); size.setMax(60); root.addView(size);
-        size.setOnSeekBarChangeListener(listener("size", 40, true));
+        Button geral = btn("GERENCIAR TODAS AS SOBREPOSIÇÕES");
+        geral.setOnClickListener(v -> openGeneralOverlaySettings());
+        root.addView(geral, lp(-1,dp(50),0,0,0,14));
 
-        addSection("Transparência");
-        alpha = new SeekBar(this); alpha.setMax(60); root.addView(alpha);
-        alpha.setOnSeekBarChangeListener(listener("alpha", 40, true));
+        search = new EditText(this);
+        search.setHint("Pesquisar aplicativo...");
+        search.setHintTextColor(0xFF64748B);
+        search.setTextColor(TEXT);
+        search.setSingleLine(true);
+        search.setPadding(dp(14),0,dp(14),0);
+        GradientDrawable sBg = new GradientDrawable();
+        sBg.setColor(CARD); sBg.setCornerRadius(dp(14));
+        search.setBackground(sBg);
+        root.addView(search, lp(-1,dp(50),0,0,0,18));
 
-        snap = sw("Encostar automaticamente na lateral"); root.addView(snap, lp(-1,-2,0,14,0,0));
-        snap.setOnCheckedChangeListener((b,c)-> Prefs.get(this).edit().putBoolean("snap", c).apply());
+        TextView heading = tv("Aplicativos instalados", 17, true, TEXT);
+        root.addView(heading, lp(-1,-2,0,0,0,8));
 
-        boot = sw("Iniciar automaticamente ao ligar o celular"); root.addView(boot);
-        boot.setOnCheckedChangeListener((b,c)-> Prefs.get(this).edit().putBoolean("boot", c).apply());
+        listContainer = new LinearLayout(this);
+        listContainer.setOrientation(LinearLayout.VERTICAL);
+        root.addView(listContainer);
 
-        Button center = button("REDEFINIR POSIÇÃO DA BOLINHA");
-        center.setOnClickListener(v -> {
-            Prefs.get(this).edit().putInt("x", dp(16)).putInt("y", dp(180)).apply();
-            refreshService(); Toast.makeText(this, "Posição redefinida", Toast.LENGTH_SHORT).show();
+        search.addTextChangedListener(new TextWatcher() {
+            public void beforeTextChanged(CharSequence s,int st,int c,int a){}
+            public void onTextChanged(CharSequence s,int st,int b,int c){ render(s.toString()); }
+            public void afterTextChanged(Editable e){}
         });
-        root.addView(center, lp(-1,dp(52),0,20,0,8));
 
-        TextView tip = text("A posição é salva automaticamente sempre que você arrasta e solta a bolinha.", 14, false);
-        tip.setTextColor(0xFF94A3B8); root.addView(tip);
         setContentView(sv);
     }
 
-    private void loadUi() {
-        enable.setChecked(Prefs.get(this).getBoolean("enabled", false));
-        boot.setChecked(Prefs.get(this).getBoolean("boot", true));
-        snap.setChecked(Prefs.get(this).getBoolean("snap", true));
-        size.setProgress(Prefs.get(this).getInt("size",64)-40);
-        alpha.setProgress(Prefs.get(this).getInt("alpha",90)-40);
-        updateTargetLabel(); updatePermissionStatus();
-    }
+    private void loadApps() {
+        allApps.clear();
+        PackageManager pm = getPackageManager();
+        Intent launcher = new Intent(Intent.ACTION_MAIN, null);
+        launcher.addCategory(Intent.CATEGORY_LAUNCHER);
 
-    private void updatePermissionStatus() {
-        boolean ok = Settings.canDrawOverlays(this);
-        status.setText(ok ? "✓ Permissão de sobreposição ativada" : "⚠ Permissão de sobreposição necessária");
-        status.setTextColor(ok ? 0xFF22C55E : 0xFFF59E0B);
-        if (enable != null && enable.isChecked() && ok) startBubbleService();
-    }
+        List<ResolveInfo> list = pm.queryIntentActivities(launcher, 0);
+        HashSet<String> seen = new HashSet<>();
 
-    private void toggleBubble(boolean checked) {
-        Prefs.get(this).edit().putBoolean("enabled", checked).apply();
-        if (checked) {
-            if (!Settings.canDrawOverlays(this)) { openOverlaySettings(); return; }
-            startBubbleService();
-        } else stopService(new Intent(this, FloatingService.class));
-    }
-
-    private void startBubbleService() {
-        Intent i = new Intent(this, FloatingService.class);
-        try { if (Build.VERSION.SDK_INT >= 26) startForegroundService(i); else startService(i); }
-        catch (Exception e) { Toast.makeText(this, "Não foi possível iniciar a bolinha", Toast.LENGTH_LONG).show(); }
-    }
-
-    private void refreshService() {
-        if (!Prefs.get(this).getBoolean("enabled", false) || !Settings.canDrawOverlays(this)) return;
-        Intent i = new Intent(this, FloatingService.class); i.setAction("refresh");
-        try { if (Build.VERSION.SDK_INT >= 26) startForegroundService(i); else startService(i); } catch(Exception ignored) {}
-    }
-
-    private void openOverlaySettings() {
-        try { startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + getPackageName()))); }
-        catch(Exception e){ startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION)); }
-    }
-
-    private void chooseApp() {
-        Intent intent = new Intent(Intent.ACTION_MAIN); intent.addCategory(Intent.CATEGORY_LAUNCHER);
-        List<ResolveInfo> list = getPackageManager().queryIntentActivities(intent, 0);
-        Collections.sort(list, new ResolveInfo.DisplayNameComparator(getPackageManager()));
-        ArrayList<ResolveInfo> filtered = new ArrayList<>(); ArrayList<String> names = new ArrayList<>();
         for (ResolveInfo r : list) {
-            if (r.activityInfo.packageName.equals(getPackageName())) continue;
-            filtered.add(r); names.add(r.loadLabel(getPackageManager()).toString());
+            String pkg = r.activityInfo.packageName;
+            if (pkg.equals(getPackageName()) || seen.contains(pkg)) continue;
+            seen.add(pkg);
+            String name = r.loadLabel(pm).toString();
+            android.graphics.drawable.Drawable icon = r.loadIcon(pm);
+            allApps.add(new AppItem(name, pkg, icon));
         }
-        new AlertDialog.Builder(this).setTitle("Escolha o aplicativo")
-                .setItems(names.toArray(new String[0]), (d, which) -> {
-                    ResolveInfo r = filtered.get(which);
-                    Prefs.get(this).edit().putString("target", r.activityInfo.packageName).putString("target_name", names.get(which)).apply();
-                    updateTargetLabel();
-                }).setNegativeButton("Cancelar", null).show();
+
+        Collections.sort(allApps, (a,b) -> {
+            boolean af = favorites.contains(a.pkg), bf = favorites.contains(b.pkg);
+            if (af != bf) return af ? -1 : 1;
+            return a.name.compareToIgnoreCase(b.name);
+        });
     }
 
-    private void updateTargetLabel() {
-        String n = Prefs.get(this).getString("target_name", "Nenhum");
-        targetLabel.setText("Aplicativo ao tocar: " + n);
+    private void render(String q) {
+        if (listContainer == null) return;
+        listContainer.removeAllViews();
+        String query = q == null ? "" : q.trim().toLowerCase(Locale.ROOT);
+
+        int count = 0;
+        for (AppItem a : allApps) {
+            if (!query.isEmpty() && !a.name.toLowerCase(Locale.ROOT).contains(query)
+                    && !a.pkg.toLowerCase(Locale.ROOT).contains(query)) continue;
+            listContainer.addView(appRow(a), lp(-1,-2,0,0,0,10));
+            count++;
+        }
+
+        if (count == 0) {
+            TextView empty = tv("Nenhum aplicativo encontrado.", 14, false, MUTED);
+            listContainer.addView(empty, lp(-1,-2,0,14,0,0));
+        }
     }
 
-    private SeekBar.OnSeekBarChangeListener listener(String key, int base, boolean refresh) {
-        return new SeekBar.OnSeekBarChangeListener() {
-            public void onProgressChanged(SeekBar s,int p,boolean from){ if(from){ Prefs.get(MainActivity.this).edit().putInt(key, base+p).apply(); if(refresh) refreshService(); } }
-            public void onStartTrackingTouch(SeekBar s){}
-            public void onStopTrackingTouch(SeekBar s){}
-        };
+    private View appRow(AppItem a) {
+        LinearLayout card = card();
+        card.setOrientation(LinearLayout.VERTICAL);
+
+        LinearLayout top = new LinearLayout(this);
+        top.setGravity(Gravity.CENTER_VERTICAL);
+
+        ImageView icon = new ImageView(this);
+        icon.setImageDrawable(a.icon);
+        top.addView(icon, new LinearLayout.LayoutParams(dp(46), dp(46)));
+
+        LinearLayout names = new LinearLayout(this);
+        names.setOrientation(LinearLayout.VERTICAL);
+        TextView name = tv(a.name, 16, true, TEXT);
+        TextView pkg = tv(a.pkg, 11, false, MUTED);
+        names.addView(name);
+        names.addView(pkg);
+        LinearLayout.LayoutParams np = new LinearLayout.LayoutParams(0,-2,1f);
+        np.setMargins(dp(12),0,dp(8),0);
+        top.addView(names,np);
+
+        TextView star = tv(favorites.contains(a.pkg) ? "★" : "☆", 28, false,
+                favorites.contains(a.pkg) ? 0xFFFFC107 : 0xFF64748B);
+        star.setGravity(Gravity.CENTER);
+        star.setPadding(dp(8),0,dp(8),0);
+        star.setOnClickListener(v -> {
+            if (favorites.contains(a.pkg)) favorites.remove(a.pkg); else favorites.add(a.pkg);
+            saveFavorites();
+            loadApps();
+            render(search.getText().toString());
+        });
+        top.addView(star, new LinearLayout.LayoutParams(dp(48),dp(48)));
+
+        card.addView(top);
+
+        LinearLayout actions = new LinearLayout(this);
+        actions.setOrientation(LinearLayout.HORIZONTAL);
+        actions.setPadding(0,dp(12),0,0);
+
+        Button overlay = btn("SOBREPOSIÇÃO");
+        Button details = btn("CONFIG. DO APP");
+        actions.addView(overlay, new LinearLayout.LayoutParams(0,dp(46),1f));
+        LinearLayout.LayoutParams dp2 = new LinearLayout.LayoutParams(0,dp(46),1f);
+        dp2.setMargins(dp(8),0,0,0);
+        actions.addView(details,dp2);
+
+        overlay.setOnClickListener(v -> openOverlayFor(a));
+        details.setOnClickListener(v -> openAppDetails(a.pkg));
+
+        card.addView(actions);
+        return card;
     }
 
-    private void addSection(String s){ TextView t=text(s,16,true); root.addView(t, lp(-1,-2,0,20,0,4)); }
-    private Switch sw(String s){ Switch x=new Switch(this); x.setText(s); x.setTextColor(Color.WHITE); x.setTextSize(16); x.setPadding(0,dp(10),0,dp(10)); return x; }
-    private Button button(String s){ Button b=new Button(this); b.setText(s); b.setTextSize(13); b.setAllCaps(false); return b; }
-    private TextView text(String s,int sp,boolean bold){ TextView t=new TextView(this); t.setText(s); t.setTextColor(Color.WHITE); t.setTextSize(sp); if(bold)t.setTypeface(null,1); return t; }
-    private View card(TextView t){ LinearLayout c=new LinearLayout(this); c.setPadding(dp(16),dp(16),dp(16),dp(16)); c.setBackgroundColor(0xFF1E293B); c.addView(t); return c; }
-    private LinearLayout.LayoutParams lp(int w,int h,int l,int top,int r,int bot){ LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(w,h); p.setMargins(l,top,r,bot); return p; }
-    private int dp(int v){ return Math.round(v*getResources().getDisplayMetrics().density); }
+    private void openOverlayFor(AppItem a) {
+        getSharedPreferences("overlay_manager", MODE_PRIVATE)
+                .edit().putString("last_pkg", a.pkg).putString("last_name", a.name).apply();
+
+        try {
+            Intent i = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    Uri.parse("package:" + a.pkg));
+            startActivity(i);
+        } catch (Exception e) {
+            try {
+                Intent i = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION);
+                startActivity(i);
+                Toast.makeText(this,
+                        "Procure " + a.name + " na lista e ative ou desative a permissão.",
+                        Toast.LENGTH_LONG).show();
+            } catch (Exception ex) {
+                openAppDetails(a.pkg);
+            }
+        }
+    }
+
+    private void openGeneralOverlaySettings() {
+        try {
+            startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION));
+        } catch (Exception e) {
+            try {
+                startActivity(new Intent(Settings.ACTION_SETTINGS));
+            } catch (Exception ignored) {}
+        }
+    }
+
+    private void openAppDetails(String pkg) {
+        try {
+            Intent i = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                    Uri.parse("package:" + pkg));
+            startActivity(i);
+        } catch (Exception e) {
+            Toast.makeText(this, "Não foi possível abrir as configurações desse app.", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void loadFavorites() {
+        Set<String> saved = getSharedPreferences("overlay_manager", MODE_PRIVATE)
+                .getStringSet("favorites", Collections.emptySet());
+        favorites.clear();
+        favorites.addAll(saved);
+    }
+
+    private void saveFavorites() {
+        getSharedPreferences("overlay_manager", MODE_PRIVATE)
+                .edit().putStringSet("favorites", new HashSet<>(favorites)).apply();
+    }
+
+    private LinearLayout card() {
+        LinearLayout c = new LinearLayout(this);
+        c.setPadding(dp(14),dp(14),dp(14),dp(14));
+        GradientDrawable bg = new GradientDrawable();
+        bg.setColor(CARD); bg.setCornerRadius(dp(16));
+        c.setBackground(bg);
+        return c;
+    }
+
+    private Button btn(String s) {
+        Button b = new Button(this);
+        b.setText(s);
+        b.setTextSize(12);
+        b.setAllCaps(false);
+        b.setTextColor(Color.WHITE);
+        GradientDrawable bg = new GradientDrawable();
+        bg.setColor(BLUE); bg.setCornerRadius(dp(12));
+        b.setBackground(bg);
+        return b;
+    }
+
+    private TextView tv(String s,int sp,boolean bold,int color) {
+        TextView t = new TextView(this);
+        t.setText(s); t.setTextSize(sp); t.setTextColor(color);
+        if (bold) t.setTypeface(null, Typeface.BOLD);
+        return t;
+    }
+
+    private LinearLayout.LayoutParams lp(int w,int h,int l,int top,int r,int bottom){
+        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(w,h);
+        p.setMargins(l,top,r,bottom);
+        return p;
+    }
+
+    private int dp(int v){ return Math.round(v * getResources().getDisplayMetrics().density); }
 }
