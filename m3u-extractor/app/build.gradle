@@ -1,0 +1,2 @@
+plugins { id 'com.android.application' }
+android { namespace 'com.m3u.extractor'; compileSdk 35; defaultConfig { applicationId 'com.m3u.extractor'; minSdk 23; targetSdk 34; versionCode 1; versionName '1.0' } }
